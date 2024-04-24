@@ -11,20 +11,24 @@ elif sys.argv[1][-4:] != ".asm":
 
 with open(sys.argv[1], "r") as f:
     for line in f:
+        # skip empty lines
         if line == "\n" or line == "":
             continue
         
+        # skip comments
         elif ";" in line:
             line = line[:line.index(";") - 1]
 
-        line = line.strip()
+        line = line.strip() # remove excess space
 
         instructions.append(line.rstrip('\n'))
 
+# remove the "H" from hex numbers (example: "25H" -> "25")
 def normalize_hex(hex_num):
     hex_num = hex_num[:-1] # remove the "H"
     return hex_num
 
+# search instructions in the opcode table
 def search_instruction(lookup_instruction):
     opcode = opcodes_table[lookup_instruction]
     opcodef = hex(opcode)[2:]
@@ -32,6 +36,7 @@ def search_instruction(lookup_instruction):
         opcodef = "0" + opcodef
     return opcodef
 
+# add padding bytes to data
 def pad_data(data):
     padding = "0" * (4 - len(data))
 
@@ -41,6 +46,7 @@ def pad_data(data):
     
     return MSB, LSB
 
+# find labels' locations
 def labeling(split_instructions):
     labels = {}
     counter = 0
@@ -94,7 +100,7 @@ def labeling(split_instructions):
 
     return labels
 
-
+# main assembler function
 def assembler(instructions):
     registers = "ABCDEHLM"
     split_instructions = []
