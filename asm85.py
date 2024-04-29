@@ -17,11 +17,33 @@ with open(sys.argv[1], "r") as f:
         
         # skip comments
         elif ";" in line:
-            line = line[:line.index(";") - 1]
+            if line.index(";") == 0: # skip comment lines
+                continue
+            line = line[:line.index(";") - 1] # skip inline comments
 
         line = line.strip() # remove excess space
 
         instructions.append(line.rstrip('\n'))
+
+# check is number is a valid 8085 hexadecimal
+def is_hex(hex_num):
+    if hex_num[-1] != "H":
+        return False
+
+    try:
+        new_hex_num = int(hex_num[:-1], 16)
+    except:
+        return False
+    
+    return True
+
+# try to convert number to int
+def to_int(num):
+    try:
+        normal_num = int(num)
+    except:
+        normal_num = -1
+    return normal_num
 
 # remove the "H" from hex numbers (example: "25H" -> "25")
 def normalize_hex(hex_num):
@@ -111,39 +133,80 @@ def assembler(instructions):
         split_instructions.append(instruction.split(" "))
 
     labels = labeling(split_instructions)
-    # print(labels)
+    print(labels)
 
     for instruction in split_instructions:
         if instruction[0] == ".ORG":
+            if not is_hex(instruction[1]):
+                num = to_int(instruction[1])
+                if num < 0:
+                    print(f"Invalid padding number ({instruction[1]}) for '{instruction[0]}' on line {counter}")
+                    return None
+            
             num_of_padding = int(normalize_hex(instruction[1]), 16)
 
             while counter < num_of_padding:
                 asm_bytes.append("00")
                 counter += 1
 
-        elif instruction[0] == "ACI" or instruction[0] == "ADI" or instruction[0] == "ANI":
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
+        elif (instruction[0] == "ADC" or instruction[0] == "ADD" or instruction[0] == "ANA" or
+              instruction[0] == "ORA" or instruction[0] == "POP" or instruction[0] == "PUSH" or
+              instruction[0] == "RST" or instruction[0] == "SBB" or instruction[0] == "STAX" or
+              instruction[0] == "SUB" or instruction[0] == "XRA" or instruction[0] == "LDAX" or
+              instruction[0] == "CMP" or instruction[0] == "DCR" or instruction[0] == "INR" or
+              instruction[0] == "DAD" or instruction[0] == "DCX" or instruction[0] == "INX"):
+            if instruction[0] in ["ADC", "ADD", "ANA", "ORA", "SBB", "SUB", "XRA", "CMP", "DCR", "INR"]:
+                if instruction[1] not in "ABCDEHLM":
+                    print(f"Invalid register for '{instruction[0]}' on line {counter} (Use A, B, C, D, E, H, L, or M)")
+                    return None
+            
+            if instruction[0] in ["POP", "PUSH"]:
+                if instruction[1] not in ["B", "D", "H", "PSW"]:
+                    print(f"Invalid register for '{instruction[0]}' on line {counter} (Use B, D, H, or PSW)")
+                    return None
 
-            data = normalize_hex(instruction[1])
-            asm_bytes.append("0" + data if len(data) <= 1 else data)
-            counter += 2
+            if instruction[0] in ["STAX", "LDAX"]:
+                if instruction[1] not in "BD":
+                    print(f"Invalid register for '{instruction[0]}' on line {counter} (Use B or D)")
+                    return None
 
-        elif instruction[0] == "ADC" or instruction[0] == "ADD" or instruction[0] == "ANA":
+            if instruction[0] == "RST":
+                if instruction[1] < "0" or instruction[1] > "7":
+                    print(f"Invalid reset mode for '{instruction[0]}' on line {counter} (Use 0 - 7)")
+                    return None
+
+            if instruction[0] in ["DAD", "DCX", "INX"]:
+                if instruction[1] not in ["B", "D", "H", "SP"]:
+                    print(f"Invalid register for '{instruction[0]}' on line {counter} (Use B, D, H, or SP)")
+                    return None
+
             lookup_instruction = instruction[0] + " " + instruction[1]
             asm_bytes.append(search_instruction(lookup_instruction))
             counter += 1
 
-        elif instruction[0] == "MVI":
-            lookup_instruction = instruction[0] + " " + instruction[1][:-1]
-            asm_bytes.append(search_instruction(lookup_instruction))
-
-            data = normalize_hex(instruction[2])
-            asm_bytes.append("0" + data if len(data) <= 1 else data)
-            counter += 2
-
         elif instruction[0] == "MOV":
+            if instruction[1][:-1] not in "ABCDEHLM":
+                print(f"Invalid destination register ({instruction[1]}) for '{instruction[0]}' on line {counter} (Use A, B, C, D, E, H, L, or M)")
+                return None
+
+            if instruction[2] not in "ABCDEHLM":
+                print(f"Invalid source register ({instruction[2]}) for '{instruction[0]}' on line {counter} (Use A, B, C, D, E, H, L, or M)")
+                return None
+
             lookup_instruction = instruction[0] + " " + instruction[1] + instruction[2]
+            asm_bytes.append(search_instruction(lookup_instruction))
+            counter += 1
+
+        elif (instruction[0] == "PCHL" or instruction[0] == "RAL" or instruction[0] == "RAR" or
+              instruction[0] == "RC" or instruction[0] == "RET" or instruction[0] == "RIM" or 
+              instruction[0] == "RLC" or instruction[0] == "RM" or instruction[0] == "RNC" or 
+              instruction[0] == "RNZ" or instruction[0] == "RP" or instruction[0] == "RPE" or 
+              instruction[0] == "RPO" or instruction[0] == "RRC" or instruction[0] == "RZ" or 
+              instruction[0] == "SIM" or instruction[0] == "SPHL" or instruction[0] == "STC" or
+              instruction[0] == "XCHG" or instruction[0] == "XTHL" or instruction[0] == "CMA" or 
+              instruction[0] == "CMC" or instruction[0] == "DAA" or instruction[0] == "DI" or 
+              instruction[0] == "EI" or instruction[0] == "HLT"):
+            lookup_instruction = instruction[0]
             asm_bytes.append(search_instruction(lookup_instruction))
             counter += 1
 
@@ -151,148 +214,20 @@ def assembler(instructions):
             asm_bytes.append("00")
             counter += 1
 
-        elif instruction[0] == "ORA":
-            if instruction[1] not in registers:
-                print(f"Invalid register at line {counter}: {instruction[1]}")
-            lookup_instruction = instruction[0] + " " + instruction[1]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
+        elif (instruction[0] == "ACI" or instruction[0] == "ADI" or instruction[0] == "ANI" or
+              instruction[0] == "ORI" or instruction[0] == "OUT" or instruction[0] == "IN" or
+              instruction[0] == "SBI" or instruction[0] == "SUI" or instruction[0] == "XRI" or
+              instruction[0] == "CPI"):
+            if instruction[0] in ["ACI", "ADI", "ANI", "ORI", "SBI", "SUI", "XRI", "ACI"]:
+                if not is_hex(instruction[1]):
+                    print(f"Invalid data ({instruction[1]}) for '{instruction[0]}' on line {counter} (Use hexadecimal)")
+                    return None
 
-        elif instruction[0] == "ORI":
-            # add is hex check here
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-
-            data = normalize_hex(instruction[1])
-            asm_bytes.append("0" + data if len(data) <= 1 else data)
-            counter += 2
-
-        elif instruction[0] == "OUT" or instruction[0] == "IN":
-            # add is hex check here
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-
-            data = normalize_hex(instruction[1])
-            asm_bytes.append("0" + data if len(data) <= 1 else data)
-            counter += 2
-
-        elif instruction[0] == "PCHL":
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "POP":
-            lookup_instruction = instruction[0] + " " + instruction[1]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "PUSH":
-            lookup_instruction = instruction[0] + " " + instruction[1]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "RAL" or instruction[0] == "RAR":
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "RC" or instruction[0] == "RET":
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "RIM" or instruction[0] == "RLC":
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "RM" or instruction[0] == "RNC" or instruction[0] == "RNZ" or instruction[0] == "RP":
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "RPE" or instruction[0] == "RPO" or instruction[0] == "RRC":
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "RST":
-            if instruction[1] < "0" or instruction[1] > "7":
-                print(f"Invalid RST restart vector number on line {counter}")
-            lookup_instruction = instruction[0] + " " + instruction[1]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "RZ":
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "SBB":
-            if instruction[1] not in registers:
-                print(f"Invalid register for SBB on line {counter}")
-            lookup_instruction = instruction[0] + " " + instruction[1]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "SBI":
-            # add is hex check here
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-
-            data = normalize_hex(instruction[1])
-            asm_bytes.append("0" + data if len(data) <= 1 else data)
-            counter += 2
-
-        elif instruction[0] == "SHLD" or instruction[0] == "LHLD":
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-
-            data = normalize_hex(instruction[1])
-            MSB, LSB = pad_data(data)
+            if instruction[0] in ["OUT", "IN"]:
+                if not is_hex(instruction[1]):
+                    print(f"Invalid port address ({instruction[1]}) for '{instruction[0]}' on line {counter} (Use hexadecimal)")
+                    return None
             
-            asm_bytes.append(LSB)
-            asm_bytes.append(MSB)
-            counter += 3
-
-        elif instruction[0] == "SIM" or instruction[0] == "SPHL":
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "STA" or instruction[0] == "LDA":
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-
-            data = normalize_hex(instruction[1])
-            MSB, LSB = pad_data(data)
-            
-            asm_bytes.append(LSB)
-            asm_bytes.append(MSB)
-            counter += 3
-
-        elif instruction[0] == "STAX":
-            if instruction[1] not in "BD":
-                print(f"Invalid register for STAX on line {counter}")
-
-            lookup_instruction = instruction[0] + " " + instruction[1]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "STC":
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "SUB":
-            if instruction[1] not in registers:
-                print(f"Invalid register for SUB on line {counter}")
-            lookup_instruction = instruction[0] + " " + instruction[1]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "SUI":
-            # add is hex check here
             lookup_instruction = instruction[0]
             asm_bytes.append(search_instruction(lookup_instruction))
 
@@ -300,82 +235,61 @@ def assembler(instructions):
             asm_bytes.append("0" + data if len(data) <= 1 else data)
             counter += 2
 
-        elif instruction[0] == "XCHG" or instruction[0] == "XTHL":
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
+        elif instruction[0] == "MVI" or instruction[0] == "LXI":
+            if instruction[0] == "MVI":
+                if instruction[1][:-1] not in "ABCDEHLM":
+                    print(f"Invalid register ({instruction[1][:-1]}) for '{instruction[0]}' on line {counter} (Use A, B, C, D, E, H, L, or M)")
+                    return None
 
-        elif instruction[0] == "XRA":
-            if instruction[1] not in registers:
-                print(f"Invalid register for XRA on line {counter}")
-            lookup_instruction = instruction[0] + " " + instruction[1]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
+            if instruction[0] == "LXI":
+                if instruction[1][:-1] not in ["B", "D", "H", "SP"]:
+                    print(f"Invalid register ({instruction[1][:-1]}) for '{instruction[0]}' on line {counter} (Use B, D, H, or SP)")
+                    return None
+                
+            if not is_hex(instruction[2]):
+                print(f"Invalid data ({instruction[2]}) for '{instruction[0]}' on line {counter} (Use hexadecimal)")
+                return None
 
-        elif instruction[0] == "XRI":
-            # add is hex check here
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-
-            data = normalize_hex(instruction[1])
-            asm_bytes.append("0" + data if len(data) <= 1 else data)
-            counter += 2
-
-        elif instruction[0] == "LXI":
             lookup_instruction = instruction[0] + " " + instruction[1][:-1]
             asm_bytes.append(search_instruction(lookup_instruction))
 
-            data = normalize_hex(instruction[2])
+            if instruction[0] == "MVI":
+                data = normalize_hex(instruction[2])
+                asm_bytes.append("0" + data if len(data) <= 1 else data)
+                counter += 2
+            elif instruction[0] == "LXI":
+                data = normalize_hex(instruction[2])
+                MSB, LSB = pad_data(data)
+                
+                asm_bytes.append(LSB)
+                asm_bytes.append(MSB)
+                counter += 3
+
+        elif instruction[0] == "SHLD" or instruction[0] == "LHLD" or instruction[0] == "STA" or instruction[0] == "LDA":
+            if not is_hex(instruction[1]):
+                print(f"Invalid address ({instruction[1]}) for '{instruction[0]}' on line {counter} (Use hexadecimal)")
+                return None
+
+            lookup_instruction = instruction[0]
+            asm_bytes.append(search_instruction(lookup_instruction))
+
+            data = normalize_hex(instruction[1])
             MSB, LSB = pad_data(data)
             
             asm_bytes.append(LSB)
             asm_bytes.append(MSB)
             counter += 3
 
-        elif instruction[0] == "LDAX":
-            if instruction[1] not in "BD":
-                print(f"Invalid register for STAX on line {counter}")
-
-            lookup_instruction = instruction[0] + " " + instruction[1]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
         elif (instruction[0] == "CALL" or instruction[0] == "CC" or instruction[0] == "CM" or 
               instruction[0] == "CNC" or instruction[0] == "CNZ" or instruction[0] == "CP" or 
-              instruction[0] == "CPE" or instruction[0] == "CPO" or instruction[0] == "CZ"):
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-
-            address = labels[instruction[1]]
-            MSB, LSB = pad_data(address[2:])
-
-            asm_bytes.append(LSB)
-            asm_bytes.append(MSB)
-            counter += 3
-
-        elif (instruction[0] == "CMA" or instruction[0] == "CMC" or instruction[0] == "DAA" or 
-              instruction[0] == "DI" or instruction[0] == "EI" or instruction[0] == "HLT"):
-            lookup_instruction = instruction[0]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif instruction[0] == "CMP" or instruction[0] == "DCR" or instruction[0] == "INR":
-            if instruction[1] not in registers:
-                print(f"Invalid register for {instruction[0]} on line {counter}")
-            lookup_instruction = instruction[0] + " " + instruction[1]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-        
-        elif instruction[0] == "DAD" or instruction[0] == "DCX" or instruction[0] == "INX": 
-            if instruction[1] not in ["B", "D", "H", "SP"]:
-                print(f"Invalid register for {instruction[0]} on line {counter}")
-            lookup_instruction = instruction[0] + " " + instruction[1]
-            asm_bytes.append(search_instruction(lookup_instruction))
-            counter += 1
-
-        elif (instruction[0] == "JC" or instruction[0] == "JM" or instruction[0] == "JMP" or 
+              instruction[0] == "CPE" or instruction[0] == "CPO" or instruction[0] == "CZ" or
+              instruction[0] == "JC" or instruction[0] == "JM" or instruction[0] == "JMP" or 
               instruction[0] == "JNC" or instruction[0] == "JNZ" or instruction[0] == "JP" or 
               instruction[0] == "JPE" or instruction[0] == "JPO" or instruction[0] == "JZ"):
+            if instruction[1] not in labels:
+                print(f"Invalid label ({instruction[1]}) for '{instruction[0]}' on line {counter} (Use hexadecimal)")
+                return None
+            
             lookup_instruction = instruction[0]
             asm_bytes.append(search_instruction(lookup_instruction))
 
@@ -385,17 +299,26 @@ def assembler(instructions):
             asm_bytes.append(LSB)
             asm_bytes.append(MSB)
             counter += 3
+
+        elif instruction[0][:-1] in labels:
+            counter += 1
+
+        else:
+            print(f"Invalid instruction ({instruction}) on line {counter} (Use 8085 instructions)")
+            return None
 
     return asm_bytes
 
+
 asm_bytes = assembler(instructions)
-output_path = "out/" + sys.argv[1][4:-4] + ".bin"
+if asm_bytes != None:
+    output_path = "out/" + sys.argv[1][4:-4] + ".bin"
 
-with open(output_path, "w") as f:
-    for i in range(len(asm_bytes)):
-        if i % 16 == 0 and i != 0:
-            f.write("\n")
-        f.write(asm_bytes[i])
-        f.write(" ")
+    with open(output_path, "w") as f:
+        for i in range(len(asm_bytes)):
+            if i % 16 == 0 and i != 0:
+                f.write("\n")
+            f.write(asm_bytes[i])
+            f.write(" ")
 
-print(f"Assembled program has been written to '{output_path}'")
+    print(f"Assembled program has been written to '{output_path}'")

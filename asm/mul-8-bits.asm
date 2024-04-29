@@ -1,6 +1,6 @@
 ;8085 Program to multiply 2 8-bit numbers
 
-MVI C, 00    ;Store 00 in C 
+MVI C, 0000H  ;Store 00 in C 
 
 LDA 5000H    ;1st value, Load A from memory location 5000
 MOV B, A     ;copy content of A to B
