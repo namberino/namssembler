@@ -124,7 +124,7 @@ def labeling(split_instructions):
 
 # main assembler function
 def assembler(instructions):
-    registers = "ABCDEHLM"
+    registers = "ABCDEHLM" # all registers
     split_instructions = []
     asm_bytes = []
     counter = 0x0
@@ -311,7 +311,7 @@ def assembler(instructions):
 
 
 asm_bytes = assembler(instructions)
-if asm_bytes != None:
+if asm_bytes != None: # handle errors
     output_path = "out/" + sys.argv[1][4:-4] + ".bin"
 
     with open(output_path, "w") as f:
