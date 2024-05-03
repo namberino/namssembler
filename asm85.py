@@ -220,14 +220,16 @@ def assembler(instructions):
               instruction[0] == "CPI"):
             if instruction[0] in ["ACI", "ADI", "ANI", "ORI", "SBI", "SUI", "XRI", "ACI"]:
                 if not is_hex(instruction[1]):
-                    print(f"Invalid data ({instruction[1]}) for '{instruction[0]}' on line {counter} (Use hexadecimal)")
-                    return None
+                    if to_int(instruction[1]) < 0:
+                        print(f"Invalid data ({instruction[1]}) for '{instruction[0]}' on line {counter}")
+                        return None
 
             if instruction[0] in ["OUT", "IN"]:
                 if not is_hex(instruction[1]):
-                    print(f"Invalid port address ({instruction[1]}) for '{instruction[0]}' on line {counter} (Use hexadecimal)")
-                    return None
-            
+                    if to_int(instruction[1]) < 0:
+                        print(f"Invalid port address ({instruction[1]}) for '{instruction[0]}' on line {counter}")
+                        return None
+                
             lookup_instruction = instruction[0]
             asm_bytes.append(search_instruction(lookup_instruction))
 
